@@ -1,0 +1,14 @@
+{
+    "x": 5.0,
+    "y": 5.0,
+    "cell_size": 16,
+    "agents": 1,
+    "density": 1,
+    "grid": false,
+    "fish": true,
+    "fish_density": 0,
+    "fish_breed_time": 3,
+    "shark_density": 1,
+    "shark_breed_time": 3,
+    "shark_starve_time": 10
+}
