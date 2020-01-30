@@ -1,3 +1,4 @@
+use crate::borderless;
 use crate::AgentImpl;
 use crate::AgentKind;
 use crate::Cell;
@@ -60,17 +61,15 @@ impl Environment {
                     }
                     Decision::MoveAndBreed(from, to) => {
                         &self.breed_and_move_agent(from, to);
-                        self.update_agent(to);
                     }
                     Decision::EatAndMove(from, to) => {
                         self.remove_agent(to);
                         self.move_agent(from, to);
-                        self.update_agent(to);
+                        self.update_agent_and_reset_starve(to);
                     }
                     Decision::EatAndBreed(from, to) => {
                         self.remove_agent(to);
                         self.breed_and_move_agent(from, to);
-                        self.update_agent(to);
                     }
                     Decision::Starve(position) => self.remove_agent(position),
                 };
@@ -81,6 +80,12 @@ impl Environment {
     pub fn update_agent(&mut self, coord: Coord) {
         let agent: &mut AgentImpl = self.get_mut_agent(coord).unwrap();
         agent.update();
+    }
+
+    pub fn update_agent_and_reset_starve(&mut self, coord: Coord) {
+        let agent: &mut AgentImpl = self.get_mut_agent(coord).unwrap();
+        agent.update();
+        agent.reset_starve_count_down();
     }
 
     pub fn add_agent(&mut self, agent: AgentImpl) {
@@ -108,19 +113,41 @@ impl Environment {
         self.get_neighbor(coord)
             .iter()
             .cloned()
-            .filter(|cell| cell.is_fish())
+            .filter(|cell| cell.is_fish() || cell.is_empty())
             .collect()
     }
 
     fn get_neighbor(&self, coord: Coord) -> Vec<Cell> {
-        let north = coord + Coord(0, 1);
-        let south = coord + Coord(0, -1);
-        let east = coord + Coord(-1, 0);
-        let west = coord + Coord(1, 0);
-        let north_east = coord + Coord(-1, 1);
-        let north_west = coord + Coord(1, 1);
-        let south_east = coord + Coord(-1, -1);
-        let south_west = coord + Coord(1, -1);
+        let north;
+        let south;
+        let east;
+        let west;
+        let north_east;
+        let north_west;
+        let south_east;
+        let south_west;
+
+        if !borderless() {
+            north = coord + Coord(0, 1);
+            south = coord + Coord(0, -1);
+            east = coord + Coord(-1, 0);
+            west = coord + Coord(1, 0);
+            north_east = coord + Coord(-1, 1);
+            north_west = coord + Coord(1, 1);
+            south_east = coord + Coord(-1, -1);
+            south_west = coord + Coord(1, -1);
+        } else {
+            // It is not a multiplication !
+            // Mul operator overloading is used to get toric position
+            north = coord * Coord(0, 1);
+            south = coord * Coord(0, -1);
+            east = coord * Coord(-1, 0);
+            west = coord * Coord(1, 0);
+            north_east = coord * Coord(-1, 1);
+            north_west = coord * Coord(1, 1);
+            south_east = coord * Coord(-1, -1);
+            south_west = coord * Coord(1, -1);
+        }
 
         vec![
             self.get_cell(north),
@@ -169,7 +196,7 @@ impl Environment {
     }
 
     fn get_mut_agent(&mut self, coord: Coord) -> Option<&mut AgentImpl> {
-        if let Cell::Filled(agent) =  &mut self.board[coord.as_idx()] {
+        if let Cell::Filled(agent) = &mut self.board[coord.as_idx()] {
             Some(agent)
         } else {
             None

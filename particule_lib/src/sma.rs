@@ -7,6 +7,7 @@ use crate::SHARK_BREED_COUNT_DOWN;
 use crate::SHARK_STARVE_COUNT_DOWN;
 use crate::MAX_HEIGTH;
 use crate::MAX_WIDTH;
+use crate::BORDERLESS;
 
 use rand::{seq::SliceRandom, thread_rng};
 pub struct Sma {
@@ -24,6 +25,7 @@ impl Sma {
         fish_breed_time: i32,
         shark_breed_time: i32,
         shark_starve_time: i32,
+        borderless: bool ,
     ) -> Sma {
         unsafe {
             FISH_BREED_COUNT_DOWN = fish_breed_time;
@@ -31,6 +33,7 @@ impl Sma {
             SHARK_STARVE_COUNT_DOWN = shark_starve_time;
             MAX_HEIGTH = height;
             MAX_WIDTH = width;
+            BORDERLESS = borderless;
         }
 
         Sma {

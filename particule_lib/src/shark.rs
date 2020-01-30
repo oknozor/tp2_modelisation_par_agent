@@ -29,14 +29,7 @@ impl Shark {
 impl Agent for Shark {
     fn update(&mut self) {
         self.starve_count_down -= 1;
-        if self.starve_count_down < -1 {
-            self.starve_count_down = get_shark_starve_time();
-        }
-
         self.breed_count_down -= 1;
-        if self.breed_count_down == -1 {
-            self.breed_count_down = get_shark_breed_time();
-        }
     }
 
     fn decide(&self, neighbors: &Vec<Cell>) -> Decision {
@@ -57,7 +50,11 @@ impl Agent for Shark {
             let to: Result<AgentImpl, String> = neighbors[idx].clone().try_into();
 
             if let Ok(to) = to {
-                Decision::EatAndMove(from, to.coordinate())
+                if self.breed_count_down < 0 {
+                    Decision::EatAndBreed(from, to.coordinate())
+                } else {
+                    Decision::EatAndMove(from, to.coordinate())
+                }
             } else {
                 Decision::Stall(self.coordinate)
             }
@@ -66,7 +63,11 @@ impl Agent for Shark {
             let to = neighbors[idx].clone().try_into();
 
             if let Ok(to) = to {
-                Decision::Move(from, to)
+                if self.breed_count_down < 0 {
+                    Decision::MoveAndBreed(from, to)
+                } else {
+                    Decision::Move(from, to)
+                }
             } else {
                 Decision::Stall(self.coordinate)
             }
@@ -83,14 +84,9 @@ impl Agent for Shark {
     fn coordinate(&self) -> Coord {
         self.coordinate
     }
-    fn breed_count_down(&self) -> i32 {
-        self.breed_count_down
-    }
 
-    fn set_breed_count_down(&mut self, value: i32) {
-        self.breed_count_down = value
-    }
-    fn breed(&self) -> AgentImpl {
+    fn breed(&mut self) -> AgentImpl {
+        self.breed_count_down = get_shark_breed_time();
         Box::new(Shark {
             coordinate: self.coordinate,
             breed_count_down: get_shark_breed_time(),
@@ -105,5 +101,9 @@ impl Agent for Shark {
     }
     fn clone_boxed(&self) -> Box<dyn Agent> {
         Box::new(self.clone())
+    }
+
+    fn reset_starve_count_down(&mut self) {
+        self.starve_count_down = get_shark_starve_time()
     }
 }

@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use nannou::prelude::*;
+use nannou::event::Key;
 use std::convert::TryInto;
 use particule_lib::AgentImpl;
 
@@ -43,6 +44,7 @@ impl Grid {
             CONFIG.fish_breed_time,
             CONFIG.shark_breed_time,
             CONFIG.shark_starve_time,
+            CONFIG.borderless,
         );
         sma.gen_agents(CONFIG.fish_number, CONFIG.shark_number);
         Grid { sma }
@@ -82,6 +84,7 @@ impl Grid {
 struct Model {
     pub grid: Grid,
     pub pause: bool,
+    pub step: bool,
 }
 
 fn model(app: &App) -> Model {
@@ -93,13 +96,17 @@ fn model(app: &App) -> Model {
         .unwrap();
 
     let grid = Grid::new();
-    Model { grid, pause: true }
+    Model { grid, pause: true, step: false }
 }
 
 fn update(_app: &App, model: &mut Model, _update: Update) {
     if !model.pause {
         model.grid.sma.tick();
+    }
+    else if model.step {
+        model.grid.sma.tick();
         model.pause = true;
+        model.step = false;
     }
 }
 
@@ -116,7 +123,16 @@ fn view(app: &App, m: &Model, frame: &Frame) {
 
 fn window_event(_: &App, model: &mut Model, event: WindowEvent) {
     match event {
-        KeyPressed(_) => model.pause = false,
+        KeyPressed(key) => {
+            match key {
+                Key::N => {
+                    model.pause = true;
+                    model.step = true;
+                }
+                Key::Space => model.pause = !model.pause,
+                _ => ()
+            }
+        },
         _ => {}
     }
 }

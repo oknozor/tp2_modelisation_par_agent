@@ -1,0 +1,12 @@
+{
+    "x": 3.0,
+    "y": 3.0,
+    "cell_size": 40,
+
+    "grid": false,
+    "fish_number": 2,
+    "fish_breed_time": 12,
+    "shark_number": 1,
+    "shark_breed_time": 1,
+    "shark_starve_time": 7
+}

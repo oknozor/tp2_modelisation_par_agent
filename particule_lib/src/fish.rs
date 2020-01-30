@@ -2,9 +2,9 @@ use crate::get_fish_breed_time;
 use crate::Agent;
 use crate::AgentImpl;
 use crate::AgentKind;
+use crate::Cell;
 use crate::Coord;
 use crate::Decision;
-use crate::Cell;
 use std::convert::TryInto;
 
 use rand::{thread_rng, Rng};
@@ -26,9 +26,6 @@ impl Fish {
 impl Agent for Fish {
     fn update(&mut self) {
         self.breed_count_down -= 1;
-        if self.breed_count_down == -1 {
-            self.breed_count_down = get_fish_breed_time();
-        }
     }
 
     fn decide(&self, neighbors: &Vec<Cell>) -> Decision {
@@ -57,20 +54,25 @@ impl Agent for Fish {
     fn coordinate(&self) -> Coord {
         self.coordinate
     }
-    fn breed_count_down(&self) -> i32 {
-        self.breed_count_down
-    }
 
-    fn set_breed_count_down(&mut self, value: i32) {
-        self.breed_count_down = value
-    }
-    fn breed(&self) -> AgentImpl {
+    fn breed(&mut self) -> AgentImpl {
+        self.breed_count_down = get_fish_breed_time();
         Box::new(Fish {
             coordinate: self.coordinate,
             breed_count_down: get_fish_breed_time(),
         })
     }
-    fn get_color(&self) -> (f32, f32, f32) { (0.0, 1.0, 0.0) }
-    fn set_coordinate(&mut self, coord: Coord) { self.coordinate = coord }
-    fn clone_boxed(&self) -> Box<dyn Agent> { Box::new(self.clone()) }
+    fn get_color(&self) -> (f32, f32, f32) {
+        (0.0, 1.0, 0.0)
+    }
+    fn set_coordinate(&mut self, coord: Coord) {
+        self.coordinate = coord
+    }
+    fn clone_boxed(&self) -> Box<dyn Agent> {
+        Box::new(self.clone())
+    }
+
+    fn reset_starve_count_down(&mut self) {
+        unreachable!("Fish don't starve")
+    }
 }

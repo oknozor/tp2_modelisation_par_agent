@@ -11,6 +11,7 @@ static mut SHARK_BREED_COUNT_DOWN: i32 = 0;
 static mut SHARK_STARVE_COUNT_DOWN: i32 = 0;
 static mut MAX_HEIGTH: i32 = 0;
 static mut MAX_WIDTH: i32 = 0;
+static mut BORDERLESS: bool = false;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
 pub struct Coord(pub i32, pub i32);
@@ -43,9 +44,8 @@ pub trait Agent {
     fn get_color(&self) -> (f32, f32, f32);
     fn coordinate(&self) -> Coord;
     fn set_coordinate(&mut self, coord: Coord);
-    fn breed(&self) -> AgentImpl;
-    fn breed_count_down(&self) -> i32;
-    fn set_breed_count_down(&mut self, value: i32);
+    fn breed(&mut self) -> AgentImpl;
+    fn reset_starve_count_down(&mut self);
     fn clone_boxed(&self) -> Box<dyn Agent>;
 }
 
@@ -63,6 +63,19 @@ pub enum Decision {
     MoveAndBreed(Coord, Coord),
     Starve(Coord),
     Stall(Coord),
+}
+
+impl Decision {
+    pub fn get_origin(&self) -> &Coord {
+        match self {
+           Decision::EatAndMove(from, _) => from,
+           Decision::EatAndBreed(from, _) => from,
+           Decision::Move(from, _) => from,
+           Decision::MoveAndBreed(from, _) => from,
+           Decision::Starve(from) => from,
+           Decision::Stall(from) => from,
+        }
+    }
 }
 #[derive(Clone)]
 pub enum Cell {
@@ -85,14 +98,6 @@ impl Cell {
                 _ => false,
             },
             _ => false,
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        if self.is_empty() {
-            "[empty]".into()
-        } else {
-            "[agent]".into()
         }
     }
 }
@@ -152,6 +157,34 @@ impl ops::Add<Coord> for Coord {
     }
 }
 
+// We use mul for toric world
+impl ops::Mul<Coord> for Coord {
+    type Output = Coord;
+
+    fn mul(self, rhs: Coord) -> Coord {
+        let res = Coord(self.0 + rhs.0, self.1 + rhs.1);
+        let x;
+        let y;
+        if res.0 < 0 {
+            x = max_width() -1;
+        } else if res.0 >= max_width() {
+            x = 0;
+        } else {
+            x = res.0;
+        }
+
+        if res.1 < 0 {
+            y = max_height() -1;
+        } else if res.1 >= max_height() {
+            y = 0;
+        } else {
+            y = res.1;
+        }
+
+        Coord(x, y)
+    }
+}
+
 fn get_fish_breed_time() -> i32 {
     unsafe { FISH_BREED_COUNT_DOWN }
 }
@@ -170,4 +203,8 @@ fn max_height() -> i32 {
 
 fn max_width() -> i32 {
     unsafe { MAX_WIDTH }
+}
+
+fn borderless() -> bool {
+    unsafe { BORDERLESS }
 }
