@@ -5,8 +5,8 @@
     "borderless": true,
     "grid": false,
     "fish_number": 1000,
-    "fish_breed_time": 25,
-    "shark_number": 400,
-    "shark_breed_time":20,
-    "shark_starve_time": 18
+    "fish_breed_time": 20,
+    "shark_number": 100,
+    "shark_breed_time":19,
+    "shark_starve_time": 17
 }
