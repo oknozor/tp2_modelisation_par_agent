@@ -33,7 +33,7 @@ impl Agent for Shark {
     }
 
     fn decide(&self, neighbors: &Vec<Cell>) -> Decision {
-        if self.starve_count_down == 0 {
+        if self.starve_count_down < 0 {
             return Decision::Starve(self.coordinate);
         }
 

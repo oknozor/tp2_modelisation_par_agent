@@ -1,4 +1,5 @@
 use crate::borderless;
+use crate::trace::TickTrace;
 use crate::AgentImpl;
 use crate::AgentKind;
 use crate::Cell;
@@ -36,45 +37,58 @@ impl Environment {
 
     pub fn update_all(&mut self) {
         let size = self.board.len();
+
+        let mut trace = TickTrace::new();
         for idx in 0..size {
             let decision = if let Cell::Filled(agent) = &self.board[idx] {
                 match agent.get_kind() {
                     AgentKind::Fish => {
                         let neighbors = &self.get_empty_neighbors(agent.coordinate());
-                        Some(agent.decide(neighbors))
+                        Some((agent.decide(neighbors), AgentKind::Fish))
                     }
                     AgentKind::Shark => {
                         let neighbors = &self.get_shark_neighbors(agent.coordinate());
-                        Some(agent.decide(neighbors))
+                        Some((agent.decide(neighbors), AgentKind::Shark))
                     }
                 }
             } else {
                 None
             };
 
-            if let Some(decision) = decision {
+            if let Some((decision, agent_kind)) = decision {
                 match decision {
                     Decision::Stall(position) => self.update_agent(position),
                     Decision::Move(from, to) => {
+                        self.update_agent(from);
                         &self.move_agent(from, to);
-                        self.update_agent(to);
                     }
                     Decision::MoveAndBreed(from, to) => {
+                        self.update_agent(from);
                         &self.breed_and_move_agent(from, to);
+
+                        trace.birth(agent_kind);
                     }
                     Decision::EatAndMove(from, to) => {
+                        self.update_agent_and_reset_starve(from);
                         self.remove_agent(to);
                         self.move_agent(from, to);
-                        self.update_agent_and_reset_starve(to);
+                        trace.death(AgentKind::Fish);
                     }
                     Decision::EatAndBreed(from, to) => {
+                        self.update_agent_and_reset_starve(from);
                         self.remove_agent(to);
                         self.breed_and_move_agent(from, to);
+                        trace.death(AgentKind::Fish);
+                        trace.birth(AgentKind::Shark);
                     }
-                    Decision::Starve(position) => self.remove_agent(position),
+                    Decision::Starve(position) => {
+                        self.remove_agent(position);
+                        trace.death(AgentKind::Shark);
+                    }
                 };
             }
         }
+        println!("{}", trace);
     }
 
     pub fn update_agent(&mut self, coord: Coord) {
@@ -172,10 +186,11 @@ impl Environment {
 
     fn breed_and_move_agent(&mut self, from: Coord, to: Coord) {
         let agent: &mut Result<AgentImpl, String> = &mut self.get_cell(from).try_into();
+
         if let Ok(agent) = agent {
             self.set_agent_cell(&agent.breed());
             agent.set_coordinate(to);
-            self.set_agent_cell(&agent)
+            self.set_agent_cell(&agent);
         }
     }
 
@@ -209,5 +224,23 @@ impl Environment {
 
     fn set_empty_cell(&mut self, coord: Coord) {
         self.board[coord.as_idx()] = Cell::Empty(coord);
+    }
+
+    pub fn get_adjacent(&self) -> Vec<Coord> {
+        let cells: Vec<Vec<Cell>> = self
+            .board
+            .iter()
+            .filter(|cell| !cell.is_empty())
+            .map(|cell| self.get_empty_neighbors(cell.to_coord_unchecked()))
+            .collect();
+
+        let coords = cells
+            .iter()
+            .flatten()
+            .map(|cell| cell.try_into())
+            .map(|coord| coord.unwrap())
+            .collect::<Vec<Coord>>();
+
+        coords
     }
 }

@@ -2,6 +2,7 @@ pub mod environment;
 pub mod fish;
 pub mod shark;
 pub mod sma;
+pub mod trace;
 
 use std::convert::TryInto;
 use std::ops;
@@ -22,20 +23,20 @@ pub trait CloneBoxed {
     fn clone_boxed(&self) -> Box<dyn CloneBoxed>;
 }
 
- impl<T> CloneBoxed for T
- where
-    T: 'static + Clone + Agent + Fn() + Agent + Sized
- {
+impl<T> CloneBoxed for T
+where
+    T: 'static + Clone + Agent + Fn() + Agent + Sized,
+{
     fn clone_boxed(&self) -> Box<dyn CloneBoxed> {
         Box::new(self.clone())
     }
- }
+}
 
- impl Clone for Box<dyn Agent> {
+impl Clone for Box<dyn Agent> {
     fn clone(&self) -> Self {
         self.as_ref().clone_boxed()
     }
- }
+}
 
 pub trait Agent {
     fn decide(&self, neighbors: &Vec<Cell>) -> Decision;
@@ -68,12 +69,12 @@ pub enum Decision {
 impl Decision {
     pub fn get_origin(&self) -> &Coord {
         match self {
-           Decision::EatAndMove(from, _) => from,
-           Decision::EatAndBreed(from, _) => from,
-           Decision::Move(from, _) => from,
-           Decision::MoveAndBreed(from, _) => from,
-           Decision::Starve(from) => from,
-           Decision::Stall(from) => from,
+            Decision::EatAndMove(from, _) => from,
+            Decision::EatAndBreed(from, _) => from,
+            Decision::Move(from, _) => from,
+            Decision::MoveAndBreed(from, _) => from,
+            Decision::Starve(from) => from,
+            Decision::Stall(from) => from,
         }
     }
 }
@@ -98,6 +99,13 @@ impl Cell {
                 _ => false,
             },
             _ => false,
+        }
+    }
+
+    pub fn to_coord_unchecked(&self) -> Coord {
+        match self {
+            Cell::Filled(a) => a.coordinate(),
+            Cell::Empty(coord) => *coord,
         }
     }
 }
@@ -166,7 +174,7 @@ impl ops::Mul<Coord> for Coord {
         let x;
         let y;
         if res.0 < 0 {
-            x = max_width() -1;
+            x = max_width() - 1;
         } else if res.0 >= max_width() {
             x = 0;
         } else {
@@ -174,7 +182,7 @@ impl ops::Mul<Coord> for Coord {
         }
 
         if res.1 < 0 {
-            y = max_height() -1;
+            y = max_height() - 1;
         } else if res.1 >= max_height() {
             y = 0;
         } else {

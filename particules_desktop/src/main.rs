@@ -8,16 +8,14 @@ extern crate serde_derive;
 use std::fs::File;
 use std::io::prelude::*;
 
-use nannou::prelude::*;
 use nannou::event::Key;
-use std::convert::TryInto;
+use nannou::prelude::*;
 use particule_lib::AgentImpl;
+use std::convert::TryInto;
 
 use particule_lib::sma::Sma;
 
-
 mod user_config;
-
 
 lazy_static! {
     pub static ref CONFIG: user_config::Config = {
@@ -46,7 +44,7 @@ impl Grid {
             CONFIG.shark_starve_time,
             CONFIG.borderless,
         );
-        sma.gen_agents(CONFIG.fish_number, CONFIG.shark_number);
+        sma.gen_agents_grouped(CONFIG.fish_number, CONFIG.shark_number);
         Grid { sma }
     }
 
@@ -96,14 +94,17 @@ fn model(app: &App) -> Model {
         .unwrap();
 
     let grid = Grid::new();
-    Model { grid, pause: true, step: false }
+    Model {
+        grid,
+        pause: true,
+        step: false,
+    }
 }
 
 fn update(_app: &App, model: &mut Model, _update: Update) {
     if !model.pause {
         model.grid.sma.tick();
-    }
-    else if model.step {
+    } else if model.step {
         model.grid.sma.tick();
         model.pause = true;
         model.step = false;
@@ -123,15 +124,13 @@ fn view(app: &App, m: &Model, frame: &Frame) {
 
 fn window_event(_: &App, model: &mut Model, event: WindowEvent) {
     match event {
-        KeyPressed(key) => {
-            match key {
-                Key::N => {
-                    model.pause = true;
-                    model.step = true;
-                }
-                Key::Space => model.pause = !model.pause,
-                _ => ()
+        KeyPressed(key) => match key {
+            Key::N => {
+                model.pause = true;
+                model.step = true;
             }
+            Key::Space => model.pause = !model.pause,
+            _ => (),
         },
         _ => {}
     }
