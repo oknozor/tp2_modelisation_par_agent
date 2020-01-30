@@ -9,10 +9,14 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use nannou::prelude::*;
+use std::convert::TryInto;
+use particule_lib::AgentImpl;
 
 use particule_lib::sma::Sma;
 
+
 mod user_config;
+
 
 lazy_static! {
     pub static ref CONFIG: user_config::Config = {
@@ -28,14 +32,20 @@ fn main() {
 }
 
 struct Grid {
-    sma: Sma
+    sma: Sma,
 }
 
 impl Grid {
     fn new() -> Self {
-        let mut sma = Sma::new(CONFIG.x as i32, CONFIG.y as i32);
-        sma.gen_agents(2);
-        Grid {sma}
+        let mut sma = Sma::new(
+            CONFIG.x as i32,
+            CONFIG.y as i32,
+            CONFIG.fish_breed_time,
+            CONFIG.shark_breed_time,
+            CONFIG.shark_starve_time,
+        );
+        sma.gen_agents(CONFIG.fish_number, CONFIG.shark_number);
+        Grid { sma }
     }
 
     // This is the easy part, just draw the cells fill white if 1, black if 0
@@ -49,12 +59,15 @@ impl Grid {
             .rgb(1.0, 1.0, 1.0)
             .stroke(rgb(0.0, 0.0, 0.0));
 
-        self.sma.environment.agents.iter().for_each(|agent| {
-            let x = (agent.0).0 as f32;
-            let y = (agent.0).1 as f32;
-            let x = (x * CONFIG.cell_size) - width / 2.0 + offset / 2.0;
-            let y = (y * CONFIG.cell_size) - height / 2.0 + offset / 2.0;
-            self.display_agent(&draw, (0.0, 1.0, 0.0), x, y);
+        self.sma.environment.board.iter().for_each(|cell| {
+            if !cell.is_empty() {
+                let agent: AgentImpl = cell.clone().try_into().unwrap();
+                let x = agent.coordinate().0 as f32;
+                let y = agent.coordinate().1 as f32;
+                let x = (x * CONFIG.cell_size) - width / 2.0 + offset / 2.0;
+                let y = (y * CONFIG.cell_size) - height / 2.0 + offset / 2.0;
+                self.display_agent(&draw, agent.get_color(), x, y);
+            }
         });
     }
 
@@ -79,8 +92,8 @@ fn model(app: &App) -> Model {
         .build()
         .unwrap();
 
-        let grid = Grid::new();
-        Model { grid, pause: true }
+    let grid = Grid::new();
+    Model { grid, pause: true }
 }
 
 fn update(_app: &App, model: &mut Model, _update: Update) {

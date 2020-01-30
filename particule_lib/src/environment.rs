@@ -1,12 +1,12 @@
 use crate::AgentImpl;
 use crate::AgentKind;
+use crate::Cell;
 use crate::Coord;
-
-use std::collections::HashMap;
+use crate::Decision;
+use std::convert::TryInto;
 
 pub struct Environment {
     pub board: Vec<Cell>,
-    pub agents: HashMap<Coord, AgentImpl>,
     pub width: i32,
     pub height: i32,
 }
@@ -14,197 +14,173 @@ pub struct Environment {
 impl Environment {
     pub fn new(width: i32, height: i32) -> Environment {
         let size = width * height;
-        let mut board = vec![];
+        let board = vec![];
 
-        for _ in 0..size {
-            board.push(Cell::Empty)
-        }
-
-        let agents = HashMap::new();
-
-        Environment {
+        let mut env = Environment {
             width,
             height,
             board,
-            agents,
+        };
+
+        let mut board = vec![];
+
+        for idx in 0..size {
+            board.push(Cell::Empty(Coord::from_idx(idx)))
         }
+
+        env.board = board;
+
+        env
     }
 
     pub fn update_all(&mut self) {
-        let updates = self.decide_all();
+        let size = self.board.len();
+        for idx in 0..size {
+            let decision = if let Cell::Filled(agent) = &self.board[idx] {
+                match agent.get_kind() {
+                    AgentKind::Fish => {
+                        let neighbors = &self.get_empty_neighbors(agent.coordinate());
+                        Some(agent.decide(neighbors))
+                    }
+                    AgentKind::Shark => {
+                        let neighbors = &self.get_shark_neighbors(agent.coordinate());
+                        Some(agent.decide(neighbors))
+                    }
+                }
+            } else {
+                None
+            };
 
-        updates.iter().for_each(|(from, to)| {
-            let mut agent = self.agents.remove(from).expect("Expected an agent");
-            agent.update(to);
-            self.agents.insert(*to, agent);
-            self.swap_cells(from, to);
-        });
+            if let Some(decision) = decision {
+                match decision {
+                    Decision::Stall(position) => self.update_agent(position),
+                    Decision::Move(from, to) => {
+                        &self.move_agent(from, to);
+                        self.update_agent(to);
+                    }
+                    Decision::MoveAndBreed(from, to) => {
+                        &self.breed_and_move_agent(from, to);
+                        self.update_agent(to);
+                    }
+                    Decision::EatAndMove(from, to) => {
+                        self.remove_agent(to);
+                        self.move_agent(from, to);
+                        self.update_agent(to);
+                    }
+                    Decision::EatAndBreed(from, to) => {
+                        self.remove_agent(to);
+                        self.breed_and_move_agent(from, to);
+                        self.update_agent(to);
+                    }
+                    Decision::Starve(position) => self.remove_agent(position),
+                };
+            }
+        }
     }
 
-    fn decide_all(&mut self) -> Vec<(Coord, Coord)> {
-        self.agents
-            .iter()
-            .map(|(_, agent)| {
-                let neighbors = self.get_empty_neighbors(agent.coordinate());
-                agent.decide(neighbors)
-            })
-            .filter(|update| update.is_some())
-            .map(|update| update.expect("Expected (Coord, Coord), found None"))
-            .collect()
+    pub fn update_agent(&mut self, coord: Coord) {
+        let agent: &mut AgentImpl = self.get_mut_agent(coord).unwrap();
+        agent.update();
     }
-
-    // pub fn breed(&mut self, agent: AgentImpl) {
-    //     self.swap_cells(agent.coordinate(), agent.previous_coordinate());
-
-    //     if agent.breed_count_down() == 0 {
-    //         self.add_agent(Box::new(Fish {
-    //             coordinate: agent.previous_coordinate(),
-    //             previous_coordinate: agent.previous_coordinate(),
-    //             breed_count_down: 10, //FIXME
-    //         }));
-    //     }
-    // }
 
     pub fn add_agent(&mut self, agent: AgentImpl) {
-        self.set_cell(&agent);
-        self.agents.insert(agent.coordinate(), agent);
-    }
-
-    pub fn remove_agent(&mut self, agent: AgentImpl) {
-        let key = &agent.coordinate();
-        let idx = self.get_index(key);
-        self.board[idx] = Cell::Empty;
-        self.agents.remove(key);
-    }
-
-    pub fn swap_cells(&mut self, a: &Coord, b: &Coord) {
-        if a != b {
-            let idx_a = self.get_index(&a);
-            let idx_b = self.get_index(&b);
-            self.board.swap(idx_a, idx_b);
+        let coord = &agent.coordinate();
+        let idx = coord.as_idx();
+        if self.board[idx].is_empty() {
+            self.board[idx] = Cell::Filled(agent)
         }
     }
 
-    pub fn get_empty_neighbors(&self, coord: Coord) -> Vec<Coord> {
-        self.get_neighbor(&coord)
+    pub fn remove_agent(&mut self, coord: Coord) {
+        let idx = coord.as_idx();
+        self.board[idx] = Cell::Empty(coord);
+    }
+
+    pub fn get_empty_neighbors(&self, coord: Coord) -> Vec<Cell> {
+        self.get_neighbor(coord)
             .iter()
             .cloned()
-            .filter(|(cell, _)| cell.is_empty())
-            .map(|(_, coord)| coord.clone())
+            .filter(|cell| cell.is_empty())
             .collect()
     }
 
-    pub fn get_neighbor(&self, coord: &Coord) -> Vec<(Cell, Coord)> {
-        let north = &Coord(coord.0, coord.1 + 1);
-        let south = &Coord(coord.0, coord.1 - 1);
-        let east = &Coord(coord.0 - 1, coord.1);
-        let west = &Coord(coord.0 + 1, coord.1);
-        let north_east = &Coord(coord.0 - 1, coord.1 + 1);
-        let north_west = &Coord(coord.0 + 1, coord.1 + 1);
-        let south_east = &Coord(coord.0 - 1, coord.1 - 1);
-        let south_west = &Coord(coord.0 + 1, coord.1 - 1);
+    pub fn get_shark_neighbors(&self, coord: Coord) -> Vec<Cell> {
+        self.get_neighbor(coord)
+            .iter()
+            .cloned()
+            .filter(|cell| cell.is_fish())
+            .collect()
+    }
+
+    fn get_neighbor(&self, coord: Coord) -> Vec<Cell> {
+        let north = coord + Coord(0, 1);
+        let south = coord + Coord(0, -1);
+        let east = coord + Coord(-1, 0);
+        let west = coord + Coord(1, 0);
+        let north_east = coord + Coord(-1, 1);
+        let north_west = coord + Coord(1, 1);
+        let south_east = coord + Coord(-1, -1);
+        let south_west = coord + Coord(1, -1);
 
         vec![
-            (self.get_cell(north), north),
-            (self.get_cell(south), south),
-            (self.get_cell(east), east),
-            (self.get_cell(west), west),
-            (self.get_cell(north_west), north_west),
-            (self.get_cell(north_east), north_east),
-            (self.get_cell(south_east), south_east),
-            (self.get_cell(south_west), south_west),
+            self.get_cell(north),
+            self.get_cell(south),
+            self.get_cell(east),
+            self.get_cell(west),
+            self.get_cell(north_west),
+            self.get_cell(north_east),
+            self.get_cell(south_east),
+            self.get_cell(south_west),
         ]
-        .iter()
-        .filter(|(cell, _)| cell.is_some())
-        .map(|(cell, coord)| (*cell.expect("expected Cell found None"), **coord))
-        .collect()
     }
 
-    fn get_cell(&self, coord: &Coord) -> Option<&Cell> {
-        if coord.0 < 0 || coord.0 >= self.width || coord.1 < 0 || coord.1 >= self.height {
+    fn move_agent(&mut self, from: Coord, to: Coord) {
+        let agent: &mut Result<AgentImpl, String> = &mut self.get_cell(from).try_into();
+        if let Ok(agent) = agent {
+            self.set_empty_cell(agent.coordinate());
+            agent.set_coordinate(to);
+            self.set_agent_cell(&agent)
+        }
+    }
+
+    fn breed_and_move_agent(&mut self, from: Coord, to: Coord) {
+        let agent: &mut Result<AgentImpl, String> = &mut self.get_cell(from).try_into();
+        if let Ok(agent) = agent {
+            self.set_agent_cell(&agent.breed());
+            agent.set_coordinate(to);
+            self.set_agent_cell(&agent)
+        }
+    }
+
+    pub fn is_shark_at(&self, coord: Coord) -> bool {
+        let cell = self.get_cell(coord);
+
+        if let Cell::Filled(agent) = cell {
+            if agent.get_kind() == AgentKind::Shark {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    fn get_cell(&self, coord: Coord) -> Cell {
+        self.board[coord.as_idx()].clone()
+    }
+
+    fn get_mut_agent(&mut self, coord: Coord) -> Option<&mut AgentImpl> {
+        if let Cell::Filled(agent) =  &mut self.board[coord.as_idx()] {
+            Some(agent)
+        } else {
             None
-        } else {
-            let idx = self.get_index(coord);
-            Some(&self.board[idx])
         }
     }
 
-    fn get_index(&self, coord: &Coord) -> usize {
-        (coord.1 * self.width + coord.0) as usize
+    fn set_agent_cell(&mut self, agent: &AgentImpl) {
+        self.board[agent.coordinate().as_idx()] = Cell::Filled(agent.clone());
     }
 
-    fn set_cell(&mut self, agent: &AgentImpl) {
-        let idx = self.get_index(&agent.coordinate());
-        self.board[idx] = Cell::Filled(agent.get_kind())
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum Cell {
-    Empty,
-    Filled(AgentKind),
-}
-
-impl Cell {
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Cell::Empty => true,
-            _ => false,
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        if self.is_empty() {
-            "[empty]".into()
-        } else {
-            "[agent]".into()
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::environment::Environment;
-    use crate::fish::Fish;
-    use crate::Coord;
-
-    #[test]
-    fn should_set_cell() {
-        let mut env = Environment::new(5, 5);
-        let agent = Fish {
-            breed_count_down: 1,
-            coordinate: Coord(0, 0),
-            previous_coordinate: Coord(0, 0),
-        };
-
-        env.add_agent(Box::new(agent));
-
-        let expected = env.agents.get(&Coord(0, 0)).map(|agent| agent.coordinate());
-
-        assert_eq!(env.get_index(&Coord(0, 0)), 0);
-        assert_eq!(expected, Some(Coord(0, 0)));
-    }
-
-    #[test]
-    fn should_update() {
-        let mut env = Environment::new(5, 5);
-        let agent = Fish {
-            breed_count_down: 1,
-            coordinate: Coord(0, 0),
-            previous_coordinate: Coord(0, 0),
-        };
-
-        env.add_agent(Box::new(agent));
-
-        let expected = env.agents.get(&Coord(0, 0)).map(|agent| agent.coordinate());
-
-        assert_eq!(env.get_index(&Coord(0, 0)), 0);
-        assert_eq!(expected, Some(Coord(0, 0)));
-
-        env.update_all();
-
-        let expected = env.agents.get(&Coord(0, 0)).map(|agent| agent.coordinate());
-        assert_eq!(expected, None);
-
+    fn set_empty_cell(&mut self, coord: Coord) {
+        self.board[coord.as_idx()] = Cell::Empty(coord);
     }
 }
