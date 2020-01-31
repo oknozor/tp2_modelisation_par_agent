@@ -1,8 +1,8 @@
 pub mod environment;
-pub mod fish;
-pub mod shark;
+pub mod wator;
 pub mod sma;
 pub mod trace;
+pub mod pacman;
 
 use std::convert::TryInto;
 use std::ops;

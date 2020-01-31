@@ -1,6 +1,6 @@
 use crate::environment::Environment;
-use crate::fish::Fish;
-use crate::shark::Shark;
+use crate::wator::fish::Fish;
+use crate::wator::shark::Shark;
 use crate::Coord;
 use crate::BORDERLESS;
 use crate::FISH_BREED_COUNT_DOWN;
